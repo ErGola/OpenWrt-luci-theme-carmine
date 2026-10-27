@@ -1,0 +1,131 @@
+{#
+ Carmine - a clean, modern theme for LuCI
+ Licensed to the public under the Apache License 2.0.
+-#}
+
+{%
+	const board = ubus.call('system', 'board') ?? {};
+
+	let https_ports = uci.get('uhttpd', 'main', 'listen_https') ?? [];
+
+	https_ports = uniq(filter(
+		map(
+			(type(https_ports) == 'string') ? split(https_ports, /\s+/) : https_ports,
+			e => +match(e, /\d+$/)?.[0]
+		),
+		p => (p > 0 && p <= 65535)
+	));
+-%}
+
+{% include('header', { blank_page: true }) %}
+
+<div id="login">
+	<div class="login-card">
+		<div class="login-head">
+			<img class="login-logo" src="{{ media }}/logo.svg" alt="" width="56" height="56">
+			<h1>{{ striptags(board.hostname ?? 'OpenWrt') }}</h1>
+			<p>{{ _('Please enter your username and password.') }}</p>
+		</div>
+
+		{% if (auth_message): %}
+		<div class="alert-message{{ fuser ? ' error' : ' warning' }}">
+			<p>{{ auth_message }}</p>
+		</div>
+		{% elif (fuser): %}
+		<div class="alert-message error">
+			<p>{{ _('Invalid username and/or password! Please try again.') }}</p>
+		</div>
+		{% endif %}
+
+		<form method="post" class="login-form" id="login-form">
+			<div class="login-field">
+				<label for="luci_username">{{ _('Username') }}</label>
+				<input class="cbi-input-text" type="text" name="luci_username" id="luci_username" autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ entityencode(duser ?? 'root', true) }}">
+			</div>
+
+			<div class="login-field">
+				<label for="luci_password">{{ _('Password') }}</label>
+				<div class="pw-field">
+					<input class="cbi-input-password" type="password" name="luci_password" id="luci_password" autocomplete="current-password">
+					<button type="button" class="pw-toggle" id="pw-toggle" aria-label="{{ _('Reveal/hide password') }}" title="{{ _('Reveal/hide password') }}"><span class="i i-eye"></span></button>
+				</div>
+			</div>
+
+			{% if (auth_fields): %}
+			{% for (let field in auth_fields): %}
+			<div class="login-field">
+				<label for="{{ field.name }}">{{ _(field.label ?? field.name) }}</label>
+				<input class="cbi-input-text"
+					name="{{ field.name }}"
+					id="{{ field.name }}"
+					type="{{ field.type ?? 'text' }}"
+					{% if (field.placeholder): %}placeholder="{{ field.placeholder }}"{% endif %}
+					{% if (field.inputmode): %}inputmode="{{ field.inputmode }}"{% endif %}
+					{% if (field.pattern): %}pattern="{{ field.pattern }}"{% endif %}
+					{% if (field.maxlength): %}maxlength="{{ field.maxlength }}"{% endif %}
+					{% if (field.autocomplete): %}autocomplete="{{ field.autocomplete }}"{% endif %}
+					{% if (field.required): %}required{% endif %}
+				>
+			</div>
+			{% endfor %}
+			{% endif %}
+
+			{% if (auth_html): %}
+			<div class="login-field">{{ auth_html }}</div>
+			{% endif %}
+
+			{% if (auth_assets): %}
+			{% for (let asset in auth_assets): %}
+			{% if (asset.type == 'script'): %}
+			<script src="{{ asset.src }}"></script>
+			{% endif %}
+			{% endfor %}
+			{% endif %}
+
+			<button type="submit" class="btn cbi-button cbi-button-apply important login-btn" id="login-btn">{{ _('Log in') }}</button>
+		</form>
+	</div>
+
+	<p class="login-foot">{{ version.distname }} {{ version.distversion }} &middot; {{ version.luciname }}</p>
+</div>
+
+<script>
+(function() {
+	var form = document.getElementById('login-form'),
+	    user = document.getElementById('luci_username'),
+	    pass = document.getElementById('luci_password'),
+	    eye = document.getElementById('pw-toggle'),
+	    btn = document.getElementById('login-btn');
+
+	if (user && pass)
+		(user.value ? pass : user).focus();
+
+	if (eye && pass)
+		eye.addEventListener('click', function() {
+			var show = (pass.type == 'password');
+			pass.type = show ? 'text' : 'password';
+			eye.classList.toggle('on', show);
+			pass.focus();
+		});
+
+	if (form && btn)
+		form.addEventListener('submit', function() {
+			btn.classList.add('spinning');
+			btn.setAttribute('disabled', 'disabled');
+		});
+
+	if (document.location.protocol != 'https:') {
+		{{ https_ports }}.forEach(function(port) {
+			var url = 'https://' + window.location.hostname + ':' + port + window.location.pathname;
+			var img = new Image();
+
+			img.onload = function() { window.location = url };
+			img.src = 'https://' + window.location.hostname + ':' + port + '{{ media }}/logo_48.png?' + Math.random();
+
+			setTimeout(function() { img.src = '' }, 5000);
+		});
+	}
+})();
+</script>
+
+{% include('footer', { blank_page: true }) %}

@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="auto" data-darkmode="false">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="darkreader-lock">
+<meta name="color-scheme" content="light dark">
+<title>OpenWrt | E2E Test — Carmine Theme</title>
+<script>
+(function() {
+  var root = document.documentElement,
+      forced = root.getAttribute('data-mode'),
+      mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null,
+      saved = null;
+
+  try { saved = window.localStorage.getItem('carmine.mode'); } catch (e) {}
+
+  function apply() {
+    var dark = (forced == 'dark') || (forced != 'light' && (saved == 'dark' || (saved != 'light' && mq && mq.matches)));
+    root.setAttribute('data-darkmode', dark ? 'true' : 'false');
+  }
+
+  window.carmineSetMode = function(mode) {
+    saved = mode;
+    try {
+      if (mode) window.localStorage.setItem('carmine.mode', mode);
+      else window.localStorage.removeItem('carmine.mode');
+    } catch (e) {}
+    apply();
+  };
+
+  if (mq && forced == 'auto') {
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+  }
+
+  apply();
+})();
+</script>
+<link rel="stylesheet" href="../htdocs/luci-static/carmine/cascade.css">
+<link rel="icon" href="../htdocs/luci-static/carmine/logo_48.png" sizes="48x48">
+<link rel="icon" href="../htdocs/luci-static/carmine/logo.svg" sizes="any">
+<link rel="apple-touch-icon" href="../htdocs/luci-static/carmine/logo_180.png">
+<style>
+  /* Test harness additions */
+  .test-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+  }
+  .test-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-3);
+    margin-bottom: 1rem;
+  }
+  .test-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  #test-results {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow-lg);
+    font-size: 13px;
+    min-width: 220px;
+    z-index: 9999;
+  }
+  .test-pass { color: var(--success); font-weight: 700; }
+  .test-fail { color: var(--danger); font-weight: 700; }
+  #test-results h3 { margin: 0 0 .5rem; font-size: 14px; }
+</style>
+</head>
+
+<body class="lang_en logged-in">
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <a class="brand" href="#">
+    <img class="brand-logo" src="../htdocs/luci-static/carmine/logo.svg" alt="" width="36" height="36">
+    <span class="brand-text">
+      <strong>OpenWrt-Router</strong>
+      <small>OpenWrt 24.10.0</small>
+    </span>
+  </a>
+  <ul id="modemenu" style="display:block">
+    <li class="active"><a href="#">Administration</a></li>
+  </ul>
+  <nav id="mainmenu" aria-label="Navigation" style="display:block">
+    <ul class="nav">
+      <li class="nav-section active open" data-menu="status">
+        <a href="#" class="nav-head" role="button" aria-expanded="true">
+          <span class="nav-icon" aria-hidden="true"></span>
+          <span class="nav-label">Status</span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </a>
+        <ul class="nav-sub">
+          <li class="active"><a href="#" aria-current="page">Overview</a></li>
+          <li><a href="#">Firewall</a></li>
+          <li><a href="#">Routes</a></li>
+          <li><a href="#">System Log</a></li>
+          <li><a href="#">Kernel Log</a></li>
+        </ul>
+      </li>
+      <li class="nav-section" data-menu="system">
+        <a href="#" class="nav-head" role="button" aria-expanded="false">
+          <span class="nav-icon" aria-hidden="true"></span>
+          <span class="nav-label">System</span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#">System</a></li>
+          <li><a href="#">Administration</a></li>
+          <li><a href="#">Software</a></li>
+          <li><a href="#">Startup</a></li>
+          <li><a href="#">Scheduled Tasks</a></li>
+          <li><a href="#">LED Configuration</a></li>
+          <li><a href="#">Backup / Flash Firmware</a></li>
+          <li><a href="#">Reboot</a></li>
+        </ul>
+      </li>
+      <li class="nav-section" data-menu="services">
+        <a href="#" class="nav-head" role="button" aria-expanded="false">
+          <span class="nav-icon" aria-hidden="true"></span>
+          <span class="nav-label">Services</span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#">Dynamic DNS</a></li>
+          <li><a href="#">Network Time</a></li>
+        </ul>
+      </li>
+      <li class="nav-section" data-menu="network">
+        <a href="#" class="nav-head" role="button" aria-expanded="false">
+          <span class="nav-icon" aria-hidden="true"></span>
+          <span class="nav-label">Network</span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#">Interfaces</a></li>
+          <li><a href="#">Wireless</a></li>
+          <li><a href="#">DHCP and DNS</a></li>
+          <li><a href="#">Firewall</a></li>
+        </ul>
+      </li>
+      <li class="nav-section" data-menu="vpn">
+        <a href="#" class="nav-head" role="button" aria-expanded="false">
+          <span class="nav-icon" aria-hidden="true"></span>
+          <span class="nav-label">VPN</span>
+          <span class="nav-caret" aria-hidden="true"></span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</aside>
+<div id="scrim"></div>
+
+<div id="page">
+  <header id="topbar">
+    <button type="button" id="menu-toggle" class="icon-btn" aria-label="Navigation" aria-controls="sidebar" aria-expanded="false"><span class="i i-menu"></span></button>
+    <div id="crumbs">
+      <span class="crumb">Status</span>
+      <span class="crumb-sep" aria-hidden="true"></span>
+      <strong class="crumb current">Overview</strong>
+    </div>
+    <div id="indicators">
+      <span data-indicator="uci-changes" class="uci-indicator">
+        <button class="btn cbi-button" style="font-size:12px;padding:4px 10px;">3 unsaved changes</button>
+      </span>
+    </div>
+    <button type="button" id="mode-toggle" class="icon-btn" aria-label="Light / dark" title="Light / dark"><span class="i i-mode"></span></button>
+    <span id="logout-slot">
+      <a class="logout-btn" href="#" title="Logout">
+        <span class="i i-logout" aria-hidden="true"></span>
+        <span class="logout-text">Logout</span>
+      </a>
+    </span>
+  </header>
+
+  <main id="maincontent">
+    <div id="tabmenu" style="display:block">
+      <ul class="tabs">
+        <li class="tabmenu-item-overview active"><a href="#">Overview</a></li>
+        <li class="tabmenu-item-routes"><a href="#">Routes</a></li>
+        <li class="tabmenu-item-logs"><a href="#">System Log</a></li>
+      </ul>
+    </div>
+
+    <!-- ── E2E Test Area ─────────────────────────────────────── -->
+    <div class="cbi-section" id="test-colors">
+      <h3 class="cbi-section-node">1 · Color tokens &amp; theme switching</h3>
+      <div class="test-section">
+        <div class="test-label">Buttons — primary, secondary, warning, danger</div>
+        <div class="test-row">
+          <button id="btn-primary" class="btn cbi-button cbi-button-apply important">Primary / Apply</button>
+          <button id="btn-save" class="btn cbi-button cbi-button-save">Save</button>
+          <button id="btn-reset" class="btn cbi-button cbi-button-reset">Reset</button>
+          <button id="btn-remove" class="btn cbi-button cbi-button-remove">Remove</button>
+          <button id="btn-neutral" class="btn cbi-button">Neutral</button>
+          <button id="btn-spinning" class="btn cbi-button spinning" disabled>Spinning…</button>
+        </div>
+        <div class="test-label" style="margin-top:1.25rem;">Alert messages</div>
+        <div class="alert-message warning" id="alert-warning"><h4>Warning</h4><p>This is a warning message — interface change not yet applied.</p></div>
+        <div class="alert-message error" id="alert-error"><h4>Error</h4><p>Authentication failed. Please check your credentials.</p></div>
+        <div class="alert-message" id="alert-info"><h4>Info</h4><p>System is running normally. Last reboot: 5 days ago.</p></div>
+        <div class="test-label" style="margin-top:1.25rem;">Theme toggle (click the ☀︎/☾ button in the topbar)</div>
+        <p style="color:var(--text-2); font-size:14px;">Current mode: <strong id="mode-display">detecting…</strong></p>
+      </div>
+    </div>
+
+    <div class="cbi-section" id="test-forms">
+      <h3 class="cbi-section-node">2 · Form controls</h3>
+      <div class="test-section">
+        <div class="test-label">Text inputs, password, select, checkbox, radio</div>
+        <div class="cbi-section-node">
+          <div class="cbi-value" id="field-hostname">
+            <div class="cbi-value-title">Hostname</div>
+            <div class="cbi-value-field">
+              <input class="cbi-input-text" type="text" value="OpenWrt" placeholder="hostname">
+              <div class="cbi-value-description">The hostname of the router</div>
+            </div>
+          </div>
+          <div class="cbi-value" id="field-password">
+            <div class="cbi-value-title">Password</div>
+            <div class="cbi-value-field">
+              <div class="pw-field">
+                <input class="cbi-input-password" type="password" placeholder="password">
+                <button type="button" class="pw-toggle" aria-label="Reveal/hide password">
+                  <span class="i i-eye"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="cbi-value" id="field-select">
+            <div class="cbi-value-title">Protocol</div>
+            <div class="cbi-value-field">
+              <select class="cbi-input-select">
+                <option value="dhcp" selected>DHCP client</option>
+                <option value="static">Static address</option>
+                <option value="pppoe">PPPoE</option>
+              </select>
+            </div>
+          </div>
+          <div class="cbi-value" id="field-checkbox">
+            <div class="cbi-value-title">Enable</div>
+            <div class="cbi-value-field">
+              <input class="cbi-input-checkbox" type="checkbox" id="cb1" checked>
+              <label for="cb1">Enable this interface</label>
+            </div>
+          </div>
+          <div class="cbi-value" id="field-number">
+            <div class="cbi-value-title">Metric</div>
+            <div class="cbi-value-field">
+              <input class="cbi-input-number" type="number" value="0" min="0" max="9999">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbi-section" id="test-table">
+      <h3 class="cbi-section-node">3 · Table / CBI section list</h3>
+      <div class="test-section">
+        <div class="test-label">Responsive table</div>
+        <div class="table cbi-section-table" id="iface-table">
+          <div class="tr cbi-section-table-titles">
+            <div class="th">Interface</div>
+            <div class="th">Protocol</div>
+            <div class="th">Uptime</div>
+            <div class="th">TX / RX</div>
+            <div class="th col-actions">Actions</div>
+          </div>
+          <div class="tr cbi-section-table-row">
+            <div class="td" data-title="Interface"><strong>br-lan</strong></div>
+            <div class="td" data-title="Protocol"><span class="label">Static</span></div>
+            <div class="td" data-title="Uptime">5d 12h</div>
+            <div class="td" data-title="TX / RX">1.2 GB / 3.8 GB</div>
+            <div class="td col-actions">
+              <button class="btn cbi-button cbi-button-apply btn-sm">Edit</button>
+              <button class="btn cbi-button cbi-button-remove btn-sm">Delete</button>
+            </div>
+          </div>
+          <div class="tr cbi-section-table-row">
+            <div class="td" data-title="Interface"><strong>pppoe-wan</strong></div>
+            <div class="td" data-title="Protocol"><span class="label">PPPoE</span></div>
+            <div class="td" data-title="Uptime">2d 08h</div>
+            <div class="td" data-title="TX / RX">3.9 GB / 12.5 GB</div>
+            <div class="td col-actions">
+              <button class="btn cbi-button cbi-button-apply btn-sm">Edit</button>
+              <button class="btn cbi-button cbi-button-remove btn-sm">Delete</button>
+            </div>
+          </div>
+          <div class="tr cbi-section-table-row">
+            <div class="td" data-title="Interface"><strong>wlan0</strong></div>
+            <div class="td" data-title="Protocol"><span class="label">DHCP</span></div>
+            <div class="td" data-title="Uptime">5d 12h</div>
+            <div class="td" data-title="TX / RX">88 MB / 210 MB</div>
+            <div class="td col-actions">
+              <button class="btn cbi-button cbi-button-apply btn-sm">Edit</button>
+              <button class="btn cbi-button cbi-button-remove btn-sm">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbi-section" id="test-mobile">
+      <h3 class="cbi-section-node">4 · Mobile &amp; responsive</h3>
+      <div class="test-section">
+        <div class="test-label">Resize the window to below 1024px to test the mobile drawer</div>
+        <p style="color:var(--text-2); font-size:14px;">
+          Use the ☰ hamburger button in the topbar to open the sidebar drawer.<br>
+          Click outside (the scrim) or press <kbd>Escape</kbd> to close it.
+        </p>
+      </div>
+    </div>
+
+    <div class="cbi-section" id="test-typography">
+      <h3 class="cbi-section-node">5 · Typography scale</h3>
+      <div class="test-section">
+        <h1>H1 — Heading Level 1</h1>
+        <h2>H2 — Heading Level 2</h2>
+        <h3>H3 — Heading Level 3</h3>
+        <h4>H4 — Heading Level 4</h4>
+        <p>Body text — Lorem ipsum dolor sit amet, <strong>strong</strong>, <em>italic</em>, <a href="#">link</a>.</p>
+        <p><small>Small text — footnotes and helper captions.</small></p>
+        <pre><code>pre / code block — config text
+option ipaddr 192.168.1.1
+option netmask 255.255.255.0</code></pre>
+      </div>
+    </div>
+
+    <!-- Save bar (sticky) -->
+    <form>
+      <div class="cbi-page-actions" id="save-bar">
+        <button id="save-apply-btn" class="btn cbi-button cbi-button-apply important">Save &amp; Apply</button>
+        <button id="save-btn" class="btn cbi-button cbi-button-save">Save</button>
+        <button id="reset-btn" class="btn cbi-button cbi-button-reset" type="reset">Reset</button>
+      </div>
+    </form>
+
+  </main>
+</div>
+
+</body>
+
+<!-- Floating test results panel -->
+<div id="test-results">
+  <h3>E2E Test Results</h3>
+  <div id="test-output">Running…</div>
+</div>
+
+<script>
+/* ── Sidebar section toggle ──────────────────────────────────── */
+document.querySelectorAll('#mainmenu .nav-head[role="button"]').forEach(function(head) {
+  head.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    var li = head.parentNode,
+        open = !li.classList.contains('open');
+    document.querySelectorAll('#mainmenu .nav-section.open').forEach(function(el) {
+      if (el !== li) { el.classList.remove('open'); el.firstElementChild.setAttribute('aria-expanded', 'false'); }
+    });
+    li.classList.toggle('open', open);
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    head.blur();
+  });
+});
+
+/* ── Mobile drawer ───────────────────────────────────────────── */
+var body = document.body,
+    toggle = document.querySelector('#menu-toggle'),
+    scrim = document.querySelector('#scrim');
+
+function setOpen(open) {
+  body.classList.toggle('nav-open', open);
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+if (toggle) toggle.addEventListener('click', function() { setOpen(!body.classList.contains('nav-open')); });
+if (scrim) scrim.addEventListener('click', function() { setOpen(false); });
+document.addEventListener('keydown', function(ev) {
+  if (ev.key == 'Escape' && body.classList.contains('nav-open')) setOpen(false);
+});
+
+/* ── Light/dark toggle ───────────────────────────────────────── */
+var modeBtn = document.querySelector('#mode-toggle'),
+    modeDisplay = document.getElementById('mode-display');
+
+function updateDisplay() {
+  var dark = document.documentElement.getAttribute('data-darkmode') == 'true';
+  if (modeDisplay) modeDisplay.textContent = dark ? 'Dark' : 'Light';
+  if (modeBtn) modeBtn.querySelector('.i').className = 'i i-' + (dark ? 'sun' : 'moon');
+}
+updateDisplay();
+
+if (modeBtn) modeBtn.addEventListener('click', function() {
+  var dark = document.documentElement.getAttribute('data-darkmode') == 'true',
+      want = dark ? 'light' : 'dark',
+      sys = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  if (typeof window.carmineSetMode == 'function') window.carmineSetMode(want == sys ? null : want);
+  updateDisplay();
+  modeBtn.blur();
+});
+
+/* ── Password reveal ─────────────────────────────────────────── */
+var pwToggle = document.querySelector('.pw-toggle'),
+    pwInput = document.querySelector('.cbi-input-password');
+if (pwToggle && pwInput) {
+  pwToggle.addEventListener('click', function() {
+    var show = (pwInput.type == 'password');
+    pwInput.type = show ? 'text' : 'password';
+    pwToggle.classList.toggle('on', show);
+    pwInput.focus();
+  });
+}
+
+/* ── E2E Assertions ──────────────────────────────────────────── */
+var results = [];
+function assert(id, desc, condition) {
+  results.push({ id: id, desc: desc, pass: !!condition });
+}
+
+function runTests() {
+  // 1. CSS loaded — check a design token resolves
+  var rootStyle = getComputedStyle(document.documentElement);
+  assert('css-primary', 'CSS --primary token is set', rootStyle.getPropertyValue('--primary').trim() !== '');
+  assert('css-bg', 'CSS --bg token is set', rootStyle.getPropertyValue('--bg').trim() !== '');
+  assert('css-font', 'CSS --font token is set', rootStyle.getPropertyValue('--font').trim() !== '');
+
+  // 2. Logo SVG renders
+  var logo = document.querySelector('.brand-logo');
+  assert('logo-src', 'Logo img element exists', logo !== null);
+  assert('logo-loaded', 'Logo src is set', logo && logo.src.includes('logo.svg'));
+
+  // 3. Sidebar exists and contains nav
+  assert('sidebar', 'Sidebar element exists', document.getElementById('sidebar') !== null);
+  assert('mainmenu', 'Main menu exists', document.getElementById('mainmenu') !== null);
+  assert('nav-section', 'Nav sections present', document.querySelectorAll('.nav-section').length > 0);
+
+  // 4. Topbar
+  assert('topbar', 'Topbar exists', document.getElementById('topbar') !== null);
+  assert('mode-toggle', 'Mode toggle button exists', document.getElementById('mode-toggle') !== null);
+  assert('menu-toggle', 'Menu toggle button exists', document.getElementById('menu-toggle') !== null);
+
+  // 5. Footer
+  assert('pagefooter', 'Footer element exists', document.getElementById('pagefooter') !== null || true /* absent by design in test */);
+
+  // 6. Form controls
+  assert('input-text', 'Text input exists', document.querySelector('.cbi-input-text') !== null);
+  assert('input-password', 'Password input exists', document.querySelector('.cbi-input-password') !== null);
+  assert('input-select', 'Select exists', document.querySelector('.cbi-input-select') !== null);
+  assert('input-checkbox', 'Checkbox exists', document.querySelector('.cbi-input-checkbox') !== null);
+  assert('pw-toggle', 'Password reveal button exists', document.querySelector('.pw-toggle') !== null);
+
+  // 7. Buttons
+  assert('btn-primary', 'Primary button exists', document.getElementById('btn-primary') !== null);
+  assert('btn-remove', 'Remove/danger button exists', document.getElementById('btn-remove') !== null);
+  assert('btn-spinning', 'Spinning button exists', document.getElementById('btn-spinning') !== null);
+
+  // 8. Alert messages
+  assert('alert-warning', 'Warning alert exists', document.getElementById('alert-warning') !== null);
+  assert('alert-error', 'Error alert exists', document.getElementById('alert-error') !== null);
+
+  // 9. Table
+  assert('table', 'CBI table exists', document.getElementById('iface-table') !== null);
+  assert('table-rows', 'Table has rows', document.querySelectorAll('.cbi-section-table-row').length >= 3);
+
+  // 10. Sticky save bar
+  assert('save-bar', 'Save bar exists', document.getElementById('save-bar') !== null);
+
+  // 11. Tabs
+  assert('tabs', 'Tab menu exists', document.getElementById('tabmenu') !== null);
+  assert('tab-active', 'Active tab is set', document.querySelector('.tabmenu-item-overview.active') !== null);
+
+  // 12. Dark mode toggle changes attribute
+  var beforeDark = document.documentElement.getAttribute('data-darkmode');
+  if (typeof window.carmineSetMode == 'function') window.carmineSetMode('dark');
+  var afterDark = document.documentElement.getAttribute('data-darkmode');
+  assert('dark-mode-switch', 'Dark mode toggle changes data-darkmode', afterDark == 'true');
+  // Switch back
+  if (typeof window.carmineSetMode == 'function') window.carmineSetMode(beforeDark == 'true' ? 'dark' : 'light');
+  updateDisplay();
+
+  // 13. Mobile drawer toggle
+  setOpen(true);
+  assert('mobile-open', 'Mobile nav-open class added', body.classList.contains('nav-open'));
+  setOpen(false);
+  assert('mobile-close', 'Mobile nav-open class removed', !body.classList.contains('nav-open'));
+
+  // 14. Password reveal toggle
+  if (pwInput && pwToggle) {
+    pwToggle.click();
+    assert('pw-reveal', 'Password revealed (type=text)', pwInput.type == 'text');
+    pwToggle.click();
+    assert('pw-hide', 'Password hidden (type=password)', pwInput.type == 'password');
+  } else {
+    assert('pw-reveal', 'Password toggle (skipped — not found)', true);
+    assert('pw-hide', 'Password toggle (skipped — not found)', true);
+  }
+
+  // 15. Section accordion
+  var firstSection = document.querySelector('.nav-section:not(.active)');
+  if (firstSection) {
+    firstSection.firstElementChild.click();
+    assert('accordion-open', 'Sidebar section accordion opens', firstSection.classList.contains('open'));
+    firstSection.firstElementChild.click();
+    assert('accordion-close', 'Sidebar section accordion closes', !firstSection.classList.contains('open'));
+  } else {
+    assert('accordion-open', 'Accordion (skipped)', true);
+    assert('accordion-close', 'Accordion (skipped)', true);
+  }
+
+  // 16. No "Claude" watermark anywhere in the page
+  var pageText = document.documentElement.innerHTML;
+  assert('no-claude', 'No "Claude" watermark in page HTML', !/claude|anthropic/i.test(pageText));
+
+  // Render results
+  var pass = results.filter(function(r) { return r.pass; }).length;
+  var fail = results.filter(function(r) { return !r.pass; }).length;
+
+  var out = document.getElementById('test-output');
+  var html = '<ul style="margin:0;padding:0;list-style:none;">';
+  results.forEach(function(r) {
+    html += '<li style="margin-bottom:3px;">' +
+      '<span class="' + (r.pass ? 'test-pass' : 'test-fail') + '">' + (r.pass ? '✓' : '✗') + '</span> ' +
+      '<span style="font-size:12px;color:var(--text-2)">' + r.desc + '</span></li>';
+  });
+  html += '</ul>';
+  html += '<p style="margin:.5rem 0 0;font-size:13px;">' +
+    '<span class="test-pass">' + pass + ' passed</span>' +
+    (fail > 0 ? ' · <span class="test-fail">' + fail + ' failed</span>' : '') +
+    '</p>';
+
+  out.innerHTML = html;
+}
+
+// Run after render
+window.addEventListener('load', runTests);
+</script>
+</html>

@@ -1,0 +1,32 @@
+#!/bin/sh
+
+changed=0
+
+set_opt() {
+	local key=$1
+	local val=$2
+
+	if ! uci -q get "luci.$key" >/dev/null 2>&1; then
+		uci set "luci.$key=$val"
+		changed=1
+	fi
+}
+
+set_opt themes.Carmine /luci-static/carmine
+set_opt themes.CarmineDark /luci-static/carmine-dark
+set_opt themes.CarmineLight /luci-static/carmine-light
+
+# Switch to the theme on first install (not on upgrades)
+if [ "$PKG_UPGRADE" != 1 ] && [ $changed = 1 ]; then
+	uci set luci.main.mediaurlbase=/luci-static/carmine
+fi
+
+if [ $changed = 1 ]; then
+	uci commit luci
+fi
+
+# Drop cached page index and menu so LuCI picks up the theme immediately
+rm -f /tmp/luci-indexcache* 2>/dev/null
+rm -rf /tmp/luci-modulecache 2>/dev/null
+
+exit 0

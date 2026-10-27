@@ -1,0 +1,155 @@
+#!/bin/sh
+#
+# Carmine - a clean, modern theme for LuCI
+# One-file installer for OpenWrt 23.05 / 24.10 / 25.12
+#
+#   sh carmine-install.sh            install (or update) and switch to the theme
+#   sh carmine-install.sh uninstall  remove it again
+#
+# Licensed to the public under the Apache License 2.0.
+
+VERSION="@VERSION@"
+ROOT="${CARMINE_ROOT:-}"
+
+FILES="
+/www/luci-static/carmine/cascade.css
+/www/luci-static/carmine/logo.svg
+/www/luci-static/carmine/logo_48.png
+/www/luci-static/carmine/logo_180.png
+/www/luci-static/carmine-dark
+/www/luci-static/carmine-light
+/www/luci-static/resources/menu-carmine.js
+/usr/share/ucode/luci/template/themes/carmine/header.ut
+/usr/share/ucode/luci/template/themes/carmine/footer.ut
+/usr/share/ucode/luci/template/themes/carmine/sysauth.ut
+/usr/share/ucode/luci/template/themes/carmine-dark
+/usr/share/ucode/luci/template/themes/carmine-light
+/etc/uci-defaults/30_luci-theme-carmine
+"
+
+DIRS="
+/www/luci-static/carmine
+/usr/share/ucode/luci/template/themes/carmine
+"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+
+clear_cache() {
+	rm -f "$ROOT"/tmp/luci-indexcache* 2>/dev/null
+	rm -rf "$ROOT"/tmp/luci-modulecache 2>/dev/null
+	return 0
+}
+
+payload() {
+	awk 'f { print } /^__PAYLOAD_BELOW__$/ { f = 1 }' "$0"
+}
+
+b64decode() {
+	if command -v base64 >/dev/null 2>&1 && printf 'QQ==' | base64 -d >/dev/null 2>&1; then
+		base64 -d
+	elif command -v ucode >/dev/null 2>&1; then
+		ucode -e 'let fs = require("fs"); fs.stdout.write(b64dec(replace(fs.stdin.read("all"), /[ \t\r\n]+/g, "")));'
+	elif command -v openssl >/dev/null 2>&1; then
+		openssl base64 -d
+	else
+		return 1
+	fi
+}
+
+fallback_theme() {
+	local t
+
+	if [ -d "$ROOT/www/luci-static/bootstrap" ]; then
+		echo /luci-static/bootstrap
+		return
+	fi
+
+	for t in $(uci -q show luci.themes | sed -n "s/^luci\.themes\.[^=]*='\{0,1\}\([^']*\)'\{0,1\}$/\1/p"); do
+		case "$t" in /luci-static/carmine*) continue ;; esac
+		[ -d "$ROOT/www$t" ] && { echo "$t"; return; }
+	done
+
+	echo /luci-static/bootstrap
+}
+
+do_install() {
+	[ -d "$ROOT/usr/share/ucode/luci/template" ] || \
+		die "LuCI with ucode templates was not found. This theme needs OpenWrt 23.05 or newer with LuCI installed."
+
+	grep -q '^__PAYLOAD_BELOW__$' "$0" 2>/dev/null || \
+		die "run this file directly, e.g.: sh /tmp/carmine-install.sh"
+
+	[ "$(printf 'QQ==' | b64decode 2>/dev/null)" = "A" ] || \
+		die "no base64 decoder found (needs base64, ucode or openssl)"
+
+	say "Installing Carmine theme $VERSION ..."
+
+	payload | b64decode | gzip -dc | tar -xf - -C "${ROOT:-/}" || \
+		die "unpacking failed (is the file complete? is there free space?)"
+
+	[ -f "$ROOT/www/luci-static/carmine/cascade.css" ] && \
+	[ -f "$ROOT/usr/share/ucode/luci/template/themes/carmine/header.ut" ] || \
+		die "files are missing after unpacking"
+
+	# register the theme variants (same script the package runs)
+	if [ -f "$ROOT/etc/uci-defaults/30_luci-theme-carmine" ]; then
+		( cd "$ROOT/etc/uci-defaults" && . ./30_luci-theme-carmine ) && \
+			rm -f "$ROOT/etc/uci-defaults/30_luci-theme-carmine"
+	fi
+
+	case "$(uci -q get luci.main.mediaurlbase)" in
+		/luci-static/carmine*)
+			# already using a Carmine variant: keep the user's choice
+		;;
+		*)
+			uci set luci.main.mediaurlbase=/luci-static/carmine && uci commit luci || \
+				die "could not switch LuCI to the theme (uci failed)"
+		;;
+	esac
+
+	clear_cache
+
+	say "Done. Reload the LuCI page in your browser (Ctrl+F5 on a PC, pull to refresh on a phone)."
+	say "Pick CarmineLight / CarmineDark under System > System > Language and Style to force a mode."
+}
+
+do_uninstall() {
+	local f d fb
+
+	say "Removing Carmine theme ..."
+
+	for f in $FILES; do
+		rm -f "$ROOT$f"
+	done
+
+	for d in $DIRS; do
+		rmdir "$ROOT$d" 2>/dev/null
+	done
+
+	uci -q delete luci.themes.Carmine
+	uci -q delete luci.themes.CarmineDark
+	uci -q delete luci.themes.CarmineLight
+
+	case "$(uci -q get luci.main.mediaurlbase)" in
+		/luci-static/carmine*)
+			fb="$(fallback_theme)"
+			uci set luci.main.mediaurlbase="$fb"
+			say "LuCI switched back to ${fb##*/}."
+		;;
+	esac
+
+	uci commit luci
+	clear_cache
+
+	say "Done. Reload the LuCI page in your browser."
+}
+
+case "${1:-install}" in
+	install|update) do_install ;;
+	uninstall|remove) do_uninstall ;;
+	*) say "usage: sh $0 [install|uninstall]"; exit 1 ;;
+esac
+
+exit 0
+__PAYLOAD_BELOW__
